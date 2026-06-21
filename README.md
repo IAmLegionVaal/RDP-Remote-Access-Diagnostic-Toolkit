@@ -2,50 +2,71 @@
 
 A PowerShell toolkit for Windows Remote Desktop connectivity reporting and guarded local RDP repair.
 
-## Diagnostic script
+## Scripts
+
+- `RDP_Remote_Access_Diagnostic_Toolkit.ps1` — read-only service, firewall, listener, and event reporting.
+- `RDP_Remote_Access_Repair_Toolkit.ps1` — targeted RDP configuration, firewall, service, and local-group repair.
+
+## Repair actions
+
+The repair script can:
+
+- enable Remote Desktop connections with `-EnableRdp`;
+- require Network Level Authentication with `-RequireNla`;
+- enable the built-in `RemoteDesktop*` Windows Firewall rules with `-RepairFirewall`;
+- restart Remote Desktop Services with `-RestartTermService`;
+- add one explicit principal to the local Remote Desktop Users group with `-AddUser`.
+
+It does not disable NLA, remove users, create arbitrary firewall rules, configure NAT, or expose TCP 3389 through an upstream firewall or router.
+
+## Examples
+
+Preview an RDP repair without changing the device:
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\RDP_Remote_Access_Diagnostic_Toolkit.ps1
+powershell.exe -ExecutionPolicy Bypass -File .\RDP_Remote_Access_Repair_Toolkit.ps1 `
+  -EnableRdp -RequireNla -RepairFirewall -DryRun
 ```
 
-The diagnostic script reports Remote Desktop service, firewall, listener and recent event context without changing the system.
-
-## Repair script
-
-Preview a repair:
+Apply a guarded repair and add an approved user:
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\RDP_Remote_Access_Repair_Toolkit.ps1 -EnableRdp -RequireNla -RepairFirewall -DryRun
+powershell.exe -ExecutionPolicy Bypass -File .\RDP_Remote_Access_Repair_Toolkit.ps1 `
+  -EnableRdp -RequireNla -RepairFirewall -RestartTermService `
+  -AddUser "CONTOSO\Support User" -Yes
 ```
 
-Examples:
+Omit `-Yes` to require typing `YES` before changes are made. Actual changes require an elevated PowerShell session.
 
-```powershell
-.\RDP_Remote_Access_Repair_Toolkit.ps1 -EnableRdp -RequireNla -RepairFirewall
-.\RDP_Remote_Access_Repair_Toolkit.ps1 -RestartTermService
-.\RDP_Remote_Access_Repair_Toolkit.ps1 -AddUser 'CONTOSO\Support User'
-```
+## Evidence, backup, and verification
 
-## Repair behaviour
+Each run creates a timestamped directory under `%ProgramData%\RDPRemoteAccessRepair` unless `-OutputPath` is supplied. It contains:
 
-- Enables Remote Desktop connections when explicitly requested.
-- Requires Network Level Authentication when selected.
-- Enables the built-in `RemoteDesktop*` Windows Firewall rules.
-- Restarts Remote Desktop Services.
-- Adds one explicit principal to the local Remote Desktop Users group.
-- Exports Terminal Server registry keys, firewall rules and group membership before changes.
-- Captures configuration, service, listener, firewall and membership state before and after repair.
-- Supports `-DryRun`, confirmation prompts or `-Yes`, administrator checks, logs and verification.
+- `before.json` and `after.json` with RDP, service, listener, firewall, and membership state;
+- `repair.log` with planned actions, results, and verification failures;
+- for non-dry runs, registry exports for Terminal Server and RDP-Tcp settings plus exports of matching firewall rules and Remote Desktop Users membership.
 
-## Safety and exit codes
+Applied changes are verified against the requested RDP state, firewall state, service status, and group membership. `-DryRun` logs planned actions without changing the device, creating configuration backups, or performing post-change verification.
 
-Enabling RDP increases the device's remote-access exposure. Use approved firewall, network and account policy controls and avoid exposing TCP 3389 directly to the internet. The tool does not disable NLA, remove users, open arbitrary ports or configure port forwarding.
+## Exit codes
 
-Exit codes: `0` success, `2` invalid arguments, `3` unsupported platform or missing cmdlets, `4` elevation required, `10` cancelled, `20` action failure and `30` verification failure.
+| Code | Meaning |
+|---:|---|
+| 0 | Completed successfully, including a successful dry run |
+| 2 | Invalid arguments or safety refusal |
+| 3 | Unsupported platform or missing required cmdlets |
+| 4 | Elevation required |
+| 10 | User cancelled |
+| 20 | One or more repair actions or required backups failed |
+| 30 | Post-repair verification failed |
 
-## Validation note
+## Safety
 
-The repair script was committed and statically reviewed, but it was not runtime-tested on a Windows endpoint or server.
+Enabling RDP increases the device's remote-access exposure. Use approved firewall, network, identity, and account controls, and never expose TCP 3389 directly to the public internet without an approved secure access layer.
+
+## Validation status
+
+The scripts were source-reviewed during this update. They were not runtime-tested on a Windows endpoint or server.
 
 ## Author
 
